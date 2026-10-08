@@ -3,7 +3,7 @@ import sys
 from datetime import datetime, timedelta
 from urllib.parse import urlencode, urljoin, urlparse, urlunparse
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 from flask import (
     Flask,
     Response,
@@ -129,10 +129,39 @@ app = Flask(
     __name__, static_url_path="", static_folder="static", template_folder="templates"
 )
 
+# Load front/.env by absolute path so behavior does not depend on CWD.
+# Explicit environment variables win (override=False). find_dotenv is kept
+# as a fallback for setups that keep .env next to the compose project dir.
+_FRONT_ENV_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
+)
+load_dotenv(_FRONT_ENV_PATH, override=False)
+_FALLBACK_ENV_PATH = find_dotenv(usecwd=True)
+if _FALLBACK_ENV_PATH and os.path.abspath(_FALLBACK_ENV_PATH) != os.path.abspath(
+    _FRONT_ENV_PATH
+):
+    load_dotenv(_FALLBACK_ENV_PATH, override=False)
+
+
+_ALLOWED_MODES = ("dev", "prod")
+
+
+def resolve_mode(raw):
+    """Normalize and validate MODE. Single source for stage 1.
+
+    Accepts only 'dev' or 'prod' (case/whitespace-insensitive).
+    Raises ValueError with a clear message otherwise.
+    """
+    normalized = (raw if raw is not None else "dev").strip().lower()
+    if normalized not in _ALLOWED_MODES:
+        raise ValueError(f"Unknown MODE: {raw!r}. Expected 'dev' or 'prod'")
+    return normalized
+
+
 BASE_DOMAIN = os.environ.get("BASE_DOMAIN", None)
 
 # Получаем режим работы из переменных окружения
-MODE = os.getenv("MODE", "dev")
+MODE = resolve_mode(os.getenv("MODE", "dev"))
 
 # JWT cookie domain: explicit JWT_COOKIE_DOMAIN wins (empty string = host-only
 # cookies, required when the app is accessed by IP/localhost instead of
@@ -197,9 +226,7 @@ def add_cors_headers(response):
     return response
 
 
-# SQLAlchimy config
-load_dotenv()
-
+# SQLAlchimy config (env already loaded above by absolute path; no CWD load here)
 PUBLIC_CONFIG_KEYS = [
     "EXTERNAL_BASE_URL",
 ]
@@ -210,11 +237,12 @@ def get_database_uri(mode):
     Выбирает URI базы данных в зависимости от режима работы.
 
     Args:
-        mode: Режим работы ('dev' или 'prod')
+        mode: Режим работы ('dev' или 'prod', case/whitespace-insensitive)
 
     Returns:
         str: URI для подключения к БД
     """
+    mode = resolve_mode(mode)
     if mode == "dev":
         # Локальный PostgreSQL контейнер для разработки
         POSTGRES_HOST = os.getenv("POSTGRES_HOST")

@@ -35,11 +35,11 @@ jobs:
           cache-dependency-glob: uv.lock
 
       - name: Start frontend
+        # Stage 1: do not rewrite the tracked front/.env (it already defaults
+        # to MODE=dev). Container env comes from front/.env via env_file;
+        # explicit host env passthrough is stage 4 scope.
         run: |
           cd front/
-          sed -i 's/MODE=prod/MODE=dev/' .env
-          sed -i '/^BASE_DOMAIN/d' .env
-          sed -i '/^ALLOWED_HOSTS/d' .env && printf "\nALLOWED_HOSTS=http://localhost,http://172.18.0.2,http://172.18.0.3" >> .env
           docker compose up -d
 
       - name: Start selenium
@@ -157,11 +157,11 @@ jobs:
           cache-to: type=gha,scope=front-miminet,mode=min
 
       - name: Start frontend
+        # Stage 1: do not rewrite the tracked front/.env (it already defaults
+        # to MODE=dev). Container env comes from front/.env via env_file;
+        # explicit host env passthrough is stage 4 scope.
         run: |
           cd front/
-          sed -i 's/MODE=prod/MODE=dev/' .env
-          sed -i '/^BASE_DOMAIN/d' .env
-          sed -i '/^ALLOWED_HOSTS/d' .env && printf "\nALLOWED_HOSTS=http://localhost,http://172.18.0.2,http://172.18.0.3" >> .env
           docker compose up -d
 
       - name: Install dependencies

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 # Assumes sys.path is updated in conftest.py to include src
-from app import get_database_uri
+from app import get_database_uri, resolve_mode
 from miminet_model import ensure_db_exists, init_db
 from psycopg2 import OperationalError
 
@@ -76,6 +76,50 @@ class TestConfigDB:
         assert mock_connect.call_args[1]["dbname"] == "postgres"
         # Verify creation SQL
         mock_cursor.execute.assert_any_call("CREATE DATABASE new_db")
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("dev", "dev"),
+            ("Dev", "dev"),
+            (" DEV ", "dev"),
+            ("prod", "prod"),
+            ("Prod", "prod"),
+            (" PROD ", "prod"),
+        ],
+    )
+    def test_resolve_mode_normalization(self, raw, expected):
+        """Verify MODE is strip/lower normalized (stage 1 contract)."""
+        assert resolve_mode(raw) == expected
+
+    @pytest.mark.parametrize("raw", ["staging", "", "development", "devv"])
+    def test_resolve_mode_unknown(self, raw):
+        """Verify unknown MODE fails fast with a clear message."""
+        with pytest.raises(ValueError, match="Unknown MODE"):
+            resolve_mode(raw)
+        with pytest.raises(ValueError, match="'dev' or 'prod'"):
+            resolve_mode(raw)
+
+    def test_get_database_uri_normalizes_mode(self, mock_env_dev):
+        """Verify get_database_uri accepts non-normalized mode spellings."""
+        uri = get_database_uri(" Dev ")
+        assert "postgresql+psycopg2://" in uri
+        assert "sslmode" not in uri
+
+    def test_get_database_uri_normalizes_mode_prod(self, mock_env_prod):
+        """Verify get_database_uri accepts non-normalized prod spelling."""
+        uri = get_database_uri("PROD")
+        assert "sslmode=verify-full" in uri
+
+    def test_init_db_unknown_mode_fails_fast(self, monkeypatch, mocker):
+        """Verify init_db rejects unknown MODE before touching the DB."""
+        monkeypatch.setenv("MODE", "staging")
+        ensure_mock = mocker.patch("miminet_model.ensure_db_exists")
+
+        with pytest.raises(ValueError, match="Unknown MODE"):
+            init_db(MagicMock())
+
+        ensure_mock.assert_not_called()
 
     def test_init_db_dev(self, mock_env_dev, mocker, mock_sqlalchemy_inspect, mock_db):
         """Verify init_db creates schema in Dev mode."""

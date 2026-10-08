@@ -172,8 +172,12 @@ def ensure_db_exists(
 
 
 def init_db(app):
-    # Init DB
-    mode = os.getenv("MODE", "dev")
+    # Init DB (MODE contract kept in sync with front/src/app.py::resolve_mode;
+    # duplicated here to avoid a circular import; do not diverge).
+    raw_mode = os.getenv("MODE", "dev")
+    mode = (raw_mode if raw_mode is not None else "dev").strip().lower()
+    if mode not in ("dev", "prod"):
+        raise ValueError(f"Unknown MODE: {raw_mode!r}. Expected 'dev' or 'prod'")
 
     with app.app_context():
         # Получить параметры подключения в зависимости от режима

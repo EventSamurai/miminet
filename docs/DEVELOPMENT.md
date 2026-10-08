@@ -142,19 +142,29 @@ Expected: **24 passed**.
 
 ## Required environment variables
 
-| Variable | Default                        | Rootless dev value |
+`front/.env.example` documents every variable; `front/.env` holds working dev
+defaults. `MODE` is the single source: only `dev` or `prod`
+(case/whitespace-insensitive, normalized by `resolve_mode` in
+`front/src/app.py`); any other value fails fast with
+`Unknown MODE: ... Expected 'dev' or 'prod'`. An explicit
+`SQLALCHEMY_DATABASE_URI` always wins over `MODE`-based selection (throwaway
+DBs for tests). `front/.env` is loaded by absolute path, so behavior does not
+depend on the current working directory.
+
+| Variable | Default (`front/.env`)         | Rootless dev value |
 |----------|--------------------------------|--------------------|
-| `MODE` | `prod`                         | `dev` |
-| `POSTGRES_HOST` | `postgres`                     | `localhost` |
+| `MODE` | `dev`                          | `dev` |
+| `POSTGRES_HOST` | `172.18.0.4`                   | `localhost` |
 | `TEST_TARGET_HOST` | `172.18.0.2`                   | `localhost` |
 | `TEST_TARGET_PORT` | `80`                           | `5000` |
 | `SELENIUM_HUB_URL` | `http://localhost:4444/wd/hub` | (unchanged) |
 
 ## Docker network conflicts
 
-`front/.env` pins the compose networks via `DOCKER_SUBNET` (default `172.28.0.0/16`),
-`RABBITMQ_SUBNET` (default `172.20.0.0/16`) and the static addresses
-`NGINX_IP` / `MIMINET_IP` / `POSTGRES_IP` (default `172.28.0.2/.3/.4`).
+`front/docker-compose.yml` defaults to subnet `172.18.0.0/16`
+(`DOCKER_SUBNET`, override via `front/.env`) and `172.20.0.0/16`
+(`RABBITMQ_SUBNET`), with static addresses `NGINX_IP` / `MIMINET_IP` /
+`POSTGRES_IP` (defaults `172.18.0.2/.3/.4`, matching `POSTGRES_HOST`).
 If a subnet is already taken by another docker network on your machine, pick a
 free one (e.g. `172.29.0.0/16`), change the subnet **and** the matching host IPs
 in `front/.env`, then recreate the stack:
